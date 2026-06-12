@@ -1,0 +1,421 @@
+---
+title: "Project proposal"
+author: "Team 5"
+output: html_document
+---
+
+```{r load-packages, message = FALSE, include = FALSE}
+library(knitr)
+library(tidyverse)
+library(broom)
+library(htmltools)
+```
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE) # hide source code in the document
+```
+
+```{r}
+students <- read.csv('/Users/shanilevi/Documents/לימודים/שנה ב/סמסטר ד/ניתוח נתונים/ai_student_impact_dataset (1).csv')
+library(tidyverse)
+library(gridExtra)
+
+students$Group <- ifelse(students$Major_Category == "STEM", "STEM", "Non-STEM")
+students$AI_Ratio <- students$Weekly_GenAI_Hours / (students$Weekly_GenAI_Hours + students$Traditional_Study_Hours)
+students$Prompt_Engineering_Skill_Num <- ifelse(students$Prompt_Engineering_Skill == "Beginner", 1,
+                                         ifelse(students$Prompt_Engineering_Skill == "Intermediate", 2, 3))
+
+prop_df_use <- prop.table(table(students$Group, students$Primary_Use_Case), margin = 1)
+prop_df_use <- as.data.frame(prop_df_use)
+colnames(prop_df_use) <- c("Group", "Primary_Use_Case", "Proportion")
+
+prop_df_diversity <- prop.table(table(students$Group, students$Tool_Diversity), margin = 1)
+prop_df_diversity <- as.data.frame(prop_df_diversity)
+colnames(prop_df_diversity) <- c("Group", "Tool_Diversity", "Proportion")
+
+prop_df_skill <- prop.table(table(students$Group, students$Prompt_Engineering_Skill_Num), margin = 1)
+prop_df_skill <- as.data.frame(prop_df_skill)
+colnames(prop_df_skill) <- c("Group", "Skill_Level", "Proportion")
+
+prop_df_paid <- prop.table(table(students$Group, students$Paid_Subscription), margin = 1)
+prop_df_paid <- as.data.frame(prop_df_paid)
+colnames(prop_df_paid) <- c("Group", "Paid_Subscription", "Proportion")
+
+g_use <- ggplot(prop_df_use, aes(x = Primary_Use_Case, y = Proportion, fill = Group)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("STEM" = "steelblue", "Non-STEM" = "coral")) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Fig. 1 - Primary Use Case by Group", x = "Use Case", y = "Percentage within Group") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+g_diversity <- ggplot(prop_df_diversity, aes(x = as.numeric(as.character(Tool_Diversity)), y = Proportion, color = Group, group = Group)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("STEM" = "steelblue", "Non-STEM" = "coral")) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Fig. 2 - Tool Diversity by Group", x = "Number of Tools", y = "Percentage within Group") +
+  theme_minimal()
+
+g_skill <- ggplot(prop_df_skill, aes(x = factor(Skill_Level), y = Proportion, fill = Group)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("STEM" = "steelblue", "Non-STEM" = "coral")) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_discrete(labels = c("Beginner", "Intermediate", "Advanced")) +
+  labs(title = "Fig. 3 - Prompt Engineering Skill by Group", x = "Skill Level", y = "Percentage within Group") +
+  theme_minimal()
+
+g_paid <- ggplot(prop_df_paid, aes(x = "", y = Proportion, fill = Paid_Subscription)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y") +
+  scale_fill_manual(values = c("True" = "steelblue", "False" = "coral")) +
+  facet_wrap(~Group) +
+  labs(title = "Fig. 4 - Paid Subscription by Group", fill = "Paid Subscription") +
+  theme_void()
+
+g_ratio <- ggplot(students, aes(x = AI_Ratio, fill = Group)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("STEM" = "steelblue", "Non-STEM" = "coral")) +
+  labs(title = "Fig. 5 - AI Ratio Distribution by Group", x = "AI Ratio", y = "Density") +
+  theme_minimal()
+```
+
+**How do Generative AI (GenAI) usage patterns differ between STEM students and students from other major categories (Business, Medical, Humanities, and Arts) ?**
+
+## 1. Introduction
+
+The general research area this analysis contributes to is the growing integration of Generative Artificial Intelligence (GenAI) tools in higher education. In recent years, these tools have become widely used by students for studying, coding, writing, summarizing information, and generating ideas. As GenAI tools become more common in academic environments, universities and educators are increasingly seeking to understand how students from different academic disciplines use them.
+Prior research has explored the integration of Artificial Intelligence and STEM-based pedagogies in education, showing positive effects on student engagement, achievement, and critical thinking. However, these studies focus mainly on instructional interventions within specific courses rather than large-scale comparisons of GenAI usage across academic disciplines.
+
+The specific research question of this study is whether GenAI usage patterns differ between STEM students and students from non-STEM fields such as Business, Medical, Humanities, and Arts. This study examines differences in AI usage hours, prompt engineering skills, diversity of tools used, and main usage purposes.
+This question is important because GenAI technologies are rapidly changing how students learn and complete academic tasks. Understanding discipline-specific differences may help institutions develop better teaching strategies, learning support, and ethical guidelines for AI use in education.
+
+This analysis is challenging because AI usage depends on multiple factors, including technical background, study habits, academic requirements, and familiarity with AI tools. In addition, students from different disciplines may use GenAI for different purposes, making cross-group comparisons less straightforward. Since GenAI tools have only recently become widely adopted, there is still limited research examining differences in adoption across academic fields using large-scale student datasets.
+
+Our approach is to conduct an exploratory and inferential data analysis comparing STEM and non-STEM students using several GenAI usage indicators. We use descriptive statistics, visualizations, and statistical tests such as t-tests, ANOVA, and chi-square tests to identify significant differences in usage patterns across academic disciplines.
+
+
+
+
+## 2. Data
+
+The dataset contains 50,000 student observations and provides a detailed description of all 16 variables.
+
+For the purpose of this analysis, students were divided into two groups: 
+STEM (n = 15,059) and Non-STEM (n = 34,941),
+where Non-STEM combines Business, Humanities, Medical, and Arts majors. This binary grouping directly supports our research question, which compares GenAI usage patterns between technical and non-technical disciplines.
+
+The core variables used in our analysis are Weekly_GenAI_Hours, Primary_Use_Case, Prompt_Engineering_Skill, Paid_Subscription, and Traditional_Study_Hours, which together capture the intensity, purpose, and investment patterns of GenAI usage across disciplines. Additional variables such as GPA measures, burnout risk, and exam anxiety are present in the dataset but are not part of the main analysis.
+
+
+## 3. Preliminary results
+
+**Exploratory:** To explore how GenAI usage patterns differ between STEM and Non-STEM students, we examined several key variables. Since Non-STEM students outnumber STEM students by almost three to one, all comparisons are presented as within-group proportions to ensure a fair comparison.
+
+**Primary Use Case** - We ran a Chi-Square test to verify whether the differences in use case distribution are statistically significant (X-squared = 9022.9, p-value < 2.2e-16). The most striking finding is that over 52% of STEM students use AI for Debugging/Troubleshooting compared to only 13% of Non-STEM students, strongly suggesting that the purpose of AI use is tied to academic discipline [Fig 1].
+
+**Tool Diversity **- Both groups show a very similar distribution, peaking at 3 tools with a symmetric drop on both sides. The difference is not significant enough to be a useful predictor, and we therefore chose to exclude it from further analysis [Fig 2].
+
+**Prompt Engineering Skill** - We encoded skill levels numerically (1=Beginner, 2=Intermediate, 3=Advanced) and ran a Chi-Square test, which confirmed a significant difference between the groups (p-value < 2.2e-16). STEM students tend to reach higher skill levels, suggesting that technical background contributes to stronger AI interaction skills [Fig 3].
+
+**Paid Subscription** - A Chi-Square test confirmed that STEM students are significantly more likely to hold a paid AI subscription (p-value < 2.2e-16). This suggests that STEM students invest more financially in AI tools as part of their academic work [Fig 4].
+
+**AI Ratio** - We created AI_Ratio as Weekly_GenAI_Hours divided by total study hours, capturing how central AI is in a student's overall study behavior. A t-test confirmed that STEM students have a significantly higher ratio (mean = 0.43 vs. 0.36), p-value < 2.2e-16.
+This indicates that GenAI tools are significantly more embedded into the core study routines of STEM students, accounting for a larger proportion of their total academic workload compared to their peers.
+
+
+```{r, fig.width = 18, fig.height = 6}
+grid.arrange(g_use, g_diversity, g_skill, ncol = 3)
+``` 
+```{r, fig.width = 18, fig.height = 6, echo = FALSE}
+grid.arrange(g_paid, g_ratio, ncol = 2)
+```
+
+
+
+## 4. Data analysis plan
+
+To investigate how GenAI usage patterns differ between STEM and Non-STEM students, our predictor variables (X) are the features that showed significant differences between the groups: Primary_Use_Case, Prompt_Engineering_Skill, Paid_Subscription, and AI_Ratio (defined as Weekly_GenAI_Hours divided by total study hours).
+The outcome variable (Y) is a composite AI Intensity Score that captures overall usage behavior.
+
+
+The score is calculated as follows:
+$$\text{Score} = (\text{Primary_Use_Case}_{\text{norm}} \times 0.35) + (\text{AI_Ratio} \times 0.30) + (\text{Prompt_Engineering_Skill}_{\text{norm}} \times 0.20) + (\text{Paid_Subscription}_{\text{norm}} \times 0.15)$$
+### Scoring Methodology:
+
+Each categorical variable was numerically encoded prior to calculating the final AI Intensity Score:
+
+ **Primary_Use_Case**: Debugging/Troubleshooting = **1** | Direct_Answer_Generation = **0.5** | Otherwise = **0**
+ **Prompt_Engineering_Skill**: Advanced = **1** | Intermediate = **0.5** | Beginner = **0**
+ **Paid_Subscription**: True = **1** | False = **0**
+
+The formula weights reflect the relative importance of each variable based on our exploratory findings:
+
+| Variable | Weight | Justification |
+| :--- | :--- | :--- |
+| **Primary_Use_Case** | **0.35** | Received the highest weight due to the dramatic 40 percentage point gap between groups in Debugging/Troubleshooting. |
+| **AI_Ratio** | **0.30** | Showed the strongest statistically significant difference between groups according to t-test
+| **Prompt_Engineering_Skill** | **0.20** | Showed a clear but less extreme trend toward higher skills in STEM students. |
+| **Paid_Subscription** | **0.15** | Received the lowest weight as it is a binary variable that, while statistically significant, provides less granularity. |
+
+ *These weights are preliminary and may be refined as the analysis progresses.*
+
+**Hypothesis:** Based on our exploratory findings, we expect **STEM students** to score higher on this scale, reflecting a more technical and intensive pattern of AI use compared to Non-STEM students.
+
+To validate our hypothesis, we will use a t-test to compare mean scores between groups, and Chi-Square tests for categorical relationships, with statistical significance defined as p-value below 0.05.
+
+The workload will be split into two sub-groups: one focusing on feature engineering and score calculation, and the other on EDA, visualizations, and statistical testing. All team members will collaborate on interpreting the final results and writing the report.
+
+## Appendix
+
+Jadon, L. (2024). AI Impact on Students. Kaggle. https://www.kaggle.com/datasets/laveshjadon/ai-impact-on-students
+
+### Data README
+
+```{r include_data_readme, comment=''}
+cat(readLines('../data/README.md'), sep = '\n')
+```
+
+### Source code
+
+
+Loading the Data
+
+```{r, ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+students <- read.csv('/Users/shanilevi/Documents/לימודים/שנה ב/סמסטר ד/ניתוח נתונים/ai_student_impact_dataset (1).csv')
+knitr::kable(head(students, 10))
+```
+
+We will add a new column that classifies all non-STEM majors into a single group.
+```{r}
+students$Group <- ifelse(students$Major_Category == "STEM", "STEM", "Non-STEM")
+knitr::kable(head(students, 10))
+```
+
+```{r}
+table(students$Group) ## count the fields
+```
+
+Check how mant missing values
+```{r}
+colSums(is.na(students) | students == "")
+```
+##Weekly_GenAI_Hours
+```{r}
+cat("Overall mean:", round(mean(students$Weekly_GenAI_Hours), 2), "hours/week\n")
+
+group_means <- tapply(students$Weekly_GenAI_Hours, students$Group, mean)
+cat("\nNon-STEM mean:", round(group_means["Non-STEM"], 2), "hours/week\n")
+cat("STEM mean:    ", round(group_means["STEM"], 2), "hours/week\n")
+```
+We will check for any typos or unexpected values in the Primary_Use_Case column.
+
+```{r}
+unique(students$Primary_Use_Case)
+
+```
+
+We will examine the overall distribution of Primary_Use_Case and also by group. 
+```{r}
+
+table(students$Primary_Use_Case)
+
+table(students$Group, students$Primary_Use_Case)
+```
+```{r}
+library(ggplot2)
+ggplot(students, aes(x = Primary_Use_Case, fill = Group)) +
+  geom_bar(position = "dodge") +
+  scale_fill_manual(values = c("STEM" = "steelblue", "Non-STEM" = "coral")) +
+  labs(title = "Primary Use Case by Group",
+       x = "Use Case",
+       y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Since there are almost three times more Non-STEM students than STEM students, we will display the usage patterns as proportions within each group rather than as raw counts.
+
+```{r}
+prop_table <- prop.table(table(students$Group, students$Primary_Use_Case), margin = 1)
+
+prop_df <- as.data.frame(prop_table)
+colnames(prop_df) <- c("Group", "Primary_Use_Case", "Proportion")
+
+g_use <- ggplot(prop_df, aes(x = Primary_Use_Case, y = Proportion, fill = Group)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("STEM" = "steelblue", "Non-STEM" = "coral")) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Primary Use Case by Group (Within-Group %)",
+       x = "Use Case",
+       y = "Percentage within Group") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+print(g_use)
+```
+
+We ran a Chi-Square test since both variables are categorical, to check whether the distribution of use cases differs significantly between STEM and Non-STEM students.
+
+```{r}
+# Primary Use Case
+chisq.test(table(students$Group, students$Primary_Use_Case))
+```
+*Conclusion:* The Chi-Square test confirmed that the distribution of primary use cases differs significantly between STEM and Non-STEM students (p-value < 2.2e-16). The most striking difference is in Debugging/Troubleshooting, where over 52% of STEM students use AI for this purpose compared to only 13% of Non-STEM students, strongly suggesting that the purpose of AI use is tied to academic discipline.
+
+##Tool_Diversity exploring
+```{r}
+summary_stats <- function(x) {
+  c(Min    = min(x, na.rm = TRUE),
+    Median = median(x, na.rm = TRUE),
+    Mean   = round(mean(x, na.rm = TRUE), 2),
+    Max    = max(x, na.rm = TRUE))
+}
+
+overall <- summary_stats(students$Tool_Diversity)
+stem    <- summary_stats(students$Tool_Diversity[students$Group == "STEM"])
+nonstem <- summary_stats(students$Tool_Diversity[students$Group == "Non-STEM"])
+
+result <- rbind(Overall = overall, STEM = stem, "Non-STEM" = nonstem)
+print(result)
+```
+ Since the results appear very similar, we will verify the usage patterns by looking at the percentage of students within each group who use different numbers of tools.
+
+
+```{r}
+prop_df_diversity <- prop.table(table(students$Group, students$Tool_Diversity), margin = 1)
+prop_df_diversity <- as.data.frame(prop_df_diversity)
+colnames(prop_df_diversity) <- c("Group", "Tool_Diversity", "Proportion")
+
+g_diversity <- ggplot(prop_df_diversity, aes(x = as.numeric(as.character(Tool_Diversity)), 
+                    y = Proportion, color = Group, group = Group)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("STEM" = "steelblue", "Non-STEM" = "coral")) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Tool Diversity Distribution by Group",
+       x = "Number of Tools",
+       y = "Percentage within Group") +
+  theme_minimal()
+print(g_diversity)
+```
+
+*Conclusion:* The distributions of the two groups are very similar, both peaking at 3 tools with a symmetric drop on both sides. STEM students show a slight tendency to use more tools (4-5), but the difference is not significant enough to make Tool Diversity a strong predictor in our classification model.
+Therefor we are not going to use it. 
+
+
+##Prompt_Engineering_Skill
+We created a new numeric column called Prompt_Engineering_Skill_Num that encodes the original skill levels as numbers, preserving the original column unchanged. The scale runs from 1 (Beginner) to 2 (Intermediate) to 3 (Advanced).
+
+```{r}
+students$Prompt_Engineering_Skill_Num <- ifelse(students$Prompt_Engineering_Skill == "Beginner", 1,
+                                         ifelse(students$Prompt_Engineering_Skill == "Intermediate", 2, 3))
+knitr::kable(head(students, 10))
+```
+
+```{r}
+result <- data.frame(
+  Group  = c("Non-STEM", "STEM"),
+  Min    = tapply(students$Prompt_Engineering_Skill_Num, students$Group, min),
+  Mean   = round(tapply(students$Prompt_Engineering_Skill_Num, students$Group, mean), 2),
+  Max    = tapply(students$Prompt_Engineering_Skill_Num, students$Group, max)
+)
+print(result)
+```
+
+```{r}
+prop_df_skill <- prop.table(table(students$Group, students$Prompt_Engineering_Skill_Num), margin = 1)
+prop_df_skill <- as.data.frame(prop_df_skill)
+colnames(prop_df_skill) <- c("Group", "Skill_Level", "Proportion")
+
+g_skill <- ggplot(prop_df_skill, aes(x = factor(Skill_Level), y = Proportion, fill = Group)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("STEM" = "steelblue", "Non-STEM" = "coral")) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_discrete(labels = c("Beginner", "Intermediate", "Advanced")) +
+  labs(title = "Prompt Engineering Skill Distribution by Group",
+       x = "Skill Level",
+       y = "Percentage within Group") +
+  theme_minimal()
+print(g_skill)
+```
+ 
+ 
+We ran a Chi-Square test since both variables are categorical, to check whether the distribution of use cases differs significantly between STEM and Non-STEM students.
+```{r}
+# Prompt Engineering Skill
+chisq.test(table(students$Group, students$Prompt_Engineering_Skill_Num))
+```
+
+*Conclusion:* The Chi-Square test confirmed that the distribution of prompt engineering skills differs significantly between STEM and Non-STEM students (p-value < 2.2e-16). STEM students tend to reach higher skill levels, suggesting that a technical background contributes to stronger AI interaction skills.
+
+
+
+##Paid_Subscription
+
+```{r}
+unique(students$Paid_Subscription)
+```
+
+
+```{r}
+prop_df_paid <- prop.table(table(students$Group, students$Paid_Subscription), margin = 1)
+prop_df_paid <- as.data.frame(prop_df_paid)
+colnames(prop_df_paid) <- c("Group", "Paid_Subscription", "Proportion")
+
+g_paid <- ggplot(prop_df_paid, aes(x = "", y = Proportion, fill = Paid_Subscription)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y") +
+  scale_fill_manual(values = c("True" = "steelblue", "False" = "coral")) +
+  facet_wrap(~Group) +
+  labs(title = "Paid Subscription Rate by Group",
+       fill = "Paid Subscription") +
+  theme_void()
+print(g_paid)
+```
+
+## We will test whether this difference is statistically significant.
+
+```{r}
+chisq.test(table(students$Group, students$Paid_Subscription))
+```
+*Conclusion:* STEM students are significantly more likely to hold a paid AI subscription compared to Non-STEM students, and this difference is statistically significant (p-value < 2.2e-16). This suggests that STEM students invest more financially in AI tools, which may reflect a stronger reliance on or interest in AI as part of their academic work.
+
+
+##  We created the AI_Ratio column to better understand how central AI is in a student's overall study behavior. Rather than looking at AI hours alone, the ratio tells us whether a student uses AI as a small supplement to traditional studying or as their main learning tool.
+
+```{r}
+students$AI_Ratio <- students$Weekly_GenAI_Hours / 
+                     (students$Weekly_GenAI_Hours + students$Traditional_Study_Hours)
+knitr::kable(head(students, 10))
+```
+
+```{r}
+summary(students$AI_Ratio)
+
+tapply(students$AI_Ratio, students$Group, summary)
+```
+
+```{r}
+g_ratio <- ggplot(students, aes(x = AI_Ratio, fill = Group)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("STEM" = "steelblue", "Non-STEM" = "coral")) +
+  labs(title = "AI Ratio Distribution by Group",
+       x = "AI Ratio",
+       y = "Density") +
+  theme_minimal()
+print(g_ratio)
+```
+
+
+```{r}
+t.test(AI_Ratio ~ Group, data = students)
+```
+*Conclusion:* STEM students tend to rely more heavily on AI relative to their total study time, with their distribution shifted clearly to the right compared to Non-STEM students. This difference is statistically significant (p-value < 2.2e-16).
+
+
+```{r}
+students$GPA_Change <- students$Post_Semester_GPA - students$Pre_Semester_GPA
+summary(students$GPA_Change)
+
+```
+
