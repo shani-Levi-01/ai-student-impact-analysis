@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = FALSE) # hide source code in the document
 ```
 
 ```{r}
-students <- read.csv('/Users/shanilevi/Documents/לימודים/שנה ב/סמסטר ד/ניתוח נתונים/ai_student_impact_dataset (1).csv')
+students <- read.csv('ai_student_impact_dataset (1).csv')
 library(tidyverse)
 library(gridExtra)
 
@@ -418,4 +418,316 @@ students$GPA_Change <- students$Post_Semester_GPA - students$Pre_Semester_GPA
 summary(students$GPA_Change)
 
 ```
+```{r}
+summary(students)                                
+students %>% count(Major_Category)                 
+students %>% count(Institutional_Policy)
+```
+איך משפיע סוג תחום הלימוד לשינוי בציון
+```{r}
+library(tidyverse)
+
+students <- students %>%
+  mutate(GPA_change = Post_Semester_GPA - Pre_Semester_GPA)
+
+students %>%
+  group_by(Major_Category) %>%
+  summarise(
+    n             = n(),                    # כמה סטודנטים בכל תחום
+    mean_change   = mean(GPA_change),       # השיפור הממוצע
+    sd_change     = sd(GPA_change),         # פיזור — כמה משתנה בתוך התחום
+    median_change = median(GPA_change)
+  ) %>%
+  arrange(desc(mean_change))
+```
+נוסיף עמודה שכוללת את כך השעות של הלמידה עבור כל תלמיד נקרא לה Total_Hours
+
+```{r}
+students <- students %>%
+  mutate(Total_Hours = Weekly_GenAI_Hours + Traditional_Study_Hours)
+```
+
+נבדוק אותו 
+
+```{r}
+summary(students$Total_Hours)
+
+```
+
+נבנה מודל רגרסיה עבור שני המתשנים של AI RATIO ו TOTSLֹSUM
+```{r}
+model_2dim <- lm(GPA_change ~ AI_Ratio + Total_Hours, data = students)
+summary(model_2dim)
+```
+```{r}
+library(tidyverse)
+
+
+grid <- expand_grid(
+  AI_Ratio    = seq(0, 0.95, by = 0.05),
+  Total_Hours = c(10, 20, 30)
+)
+grid$pred <- predict(model_2dim, newdata = grid)
+
+# סדר את Total_Hours כך שהמקרא יתחיל מהגבוה (תואם את סדר הקווים)
+grid$Total_Hours <- factor(grid$Total_Hours, levels = c(30, 20, 10))
+
+ggplot(grid, aes(x = AI_Ratio, y = pred, color = Total_Hours)) +
+  geom_line(linewidth = 1.3) +
+  scale_color_manual(values = c("30" = "#D85A30",
+                                "20" = "#1D9E75",
+                                "10" = "#185FA5")) +
+  labs(
+    title    = "Predicted GPA change by AI reliance and study volume",
+    subtitle = "Higher AI share lowers the gain; more total hours raises it",
+    x        = "AI_Ratio  (share of study time spent on AI)",
+    y        = "Predicted GPA change",
+    color    = "Total study hours"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(color = "grey40", size = 12),
+    panel.grid.minor = element_blank(),
+    legend.position = "right"
+  )
+```
+לפי סוג השימוש בצאט הבדלים בציון
+
+```{r}
+students %>%
+  group_by(Primary_Use_Case) %>%
+  summarise(
+    n             = n(),
+    mean_change   = mean(GPA_change),
+    sd_change     = sd(GPA_change),
+    median_change = median(GPA_change)
+  ) %>%
+  arrange(desc(mean_change))
+```
+```{r}
+library(tidyverse)
+
+ggplot(students, aes(x = reorder(Primary_Use_Case, GPA_change, FUN = median),
+                     y = GPA_change)) +
+  geom_boxplot(fill = "#85B7EB", outlier.alpha = 0.1) +
+  coord_flip() +
+  labs(
+    title = "GPA change by primary AI use case",
+    x = NULL,
+    y = "GPA change (post - pre)"
+  ) +
+  theme_minimal(base_size = 14)
+```
+
+
+```{r}
+use_summary <- students %>%
+  group_by(Primary_Use_Case) %>%
+  summarise(
+    mean_change = mean(GPA_change),
+    se          = sd(GPA_change) / sqrt(n()),
+    lower       = mean_change - 1.96 * se,
+    upper       = mean_change + 1.96 * se
+  )
+
+ggplot(students, aes(x = reorder(Primary_Use_Case, GPA_change, FUN = median),
+                     y = GPA_change)) +
+  geom_boxplot(fill = "#85B7EB",
+               outlier.size = 0.5,
+               outlier.alpha = 0.15) +
+  geom_errorbar(data = use_summary,
+                aes(x = Primary_Use_Case, y = mean_change,
+                    ymin = lower, ymax = upper),
+                width = 0.25, color = "#D85A30", linewidth = 0.9) +
+  stat_summary(fun = mean, geom = "point",
+               shape = 18, size = 3, color = "#D85A30") +
+  coord_flip(ylim = c(-0.5, 0.8)) +
+  labs(title = "GPA change by primary AI use case",
+       subtitle = "Box = median & IQR; orange diamond = mean (with 95% CI)",
+       x = NULL, y = "GPA change (post - pre)") +
+  theme_minimal(base_size = 14)
+```
+```{r}
+use_summary <- students %>%
+  group_by(Primary_Use_Case) %>%
+  summarise(
+    mean_change = mean(GPA_change),
+    se          = sd(GPA_change) / sqrt(n()),      # שגיאת תקן
+    lower       = mean_change - 1.96 * se,          # רווח סמך 95%
+    upper       = mean_change + 1.96 * se
+  )
+
+ggplot(use_summary, aes(x = reorder(Primary_Use_Case, mean_change),
+                        y = mean_change)) +
+  geom_point(size = 3, color = "#185FA5") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  coord_flip() +
+  labs(title = "Mean GPA change by AI use case",
+       subtitle = "On a 1-4 GPA scale: top group improves ~2x more than bottom",
+       x = NULL, y = "Mean GPA change (with 95% CI)") +
+  theme_minimal(base_size = 14)
+```
+## ניתן לראות שיש הבדלים משמעותיים בין מי שמשתמש לטובת דיבוג וככלי עזר עומת מי שמשתמש בו לטובת תשובה ישירה
+נראה שבדיירקט אנסר יש הרבה חורגים לכיוון שמאל להידרדרות בציונים.
+
+
+עכשיו נבדוק את עניין החרדה
+נתחיל מהקשר בין חרדת מבחנים לציון
+
+```{r}
+cor(students$Anxiety_Level_During_Exams, students$GPA_change)
+```
+
+```{r}
+anxiety_summary <- students %>%
+  group_by(Anxiety_Level_During_Exams) %>%
+  summarise(mean_change = mean(GPA_change))
+
+ggplot(anxiety_summary, aes(x = Anxiety_Level_During_Exams, y = mean_change)) +
+  geom_line(color = "#185FA5", linewidth = 1) +
+  geom_point(color = "#185FA5", size = 2.5) +
+  scale_x_continuous(breaks = 1:10) +
+  labs(title = "Mean GPA change by exam anxiety level",
+       x = "Exam anxiety (1-10)", y = "Mean GPA change") +
+  theme_minimal(base_size = 14)
+
+```
+
+רואים שבין 1-5 היציבות נשמרת מבחינת השיפור בציונים
+אבל ככל שעולה רמת החרדה יש ירידה דרמטית בין 8-10
+
+
+מדיניות מול חרדה
+```{r}
+students %>% group_by(Institutional_Policy) %>%
+  summarise(mean_anxiety = mean(Anxiety_Level_During_Exams))
+```
+
+רואים הבדל די משמעותי ביחס בין מי שנאסר עליו להשתמש בכלי AI לבין מי שהותר לו השימוש
+
+```{r}
+model_full <- lm(
+  GPA_change ~ Pre_Semester_GPA + AI_Ratio + Total_Hours +
+               Tool_Diversity + Perceived_AI_Dependency + Paid_Subscription +
+               Primary_Use_Case + Prompt_Engineering_Skill +
+               Major_Category + Year_of_Study + Institutional_Policy,
+  data = students
+)
+summary(model_full)
+```
+```{r}
+library(broom)
+
+coef_table <- tidy(model_full, conf.int = TRUE) %>%
+  filter(term != "(Intercept)") %>%   # מורידים את החותך
+  filter(p.value < 0.05)              # רק המובהקים
+
+ggplot(coef_table, aes(x = estimate, y = reorder(term, estimate))) +
+  geom_vline(xintercept = 0, color = "grey30") +
+  geom_point(size = 2.5, color = "#185FA5") +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high),
+                 height = 0.25, color = "#185FA5") +
+  labs(title = "Significant drivers of GPA change (full model)",
+       subtitle = "Only predictors with p < 0.05; right of 0 raises GPA gain",
+       x = "Coefficient (effect on GPA change)", y = NULL) +
+  theme_minimal(base_size = 13)
+```
+## למצגת נסנן קצת את המשתנים ונציג את המשפיעים ביותר
+
+
+נראה כי יש חוסר תלות מוחלטת בין רמת שימוש המיומניות לבין שיפור הציון
+כלומר ניתן להצליח במבחן אבל משחינת ידע זנ לא משקף נכון
+זוהי בעיה חינוכית בעידן המודרני שנוגעת לא רק לסטודנטים - פה נוסיף עוד מידע אולי על ניסוי המשך  
+## לפני הויזואליזציה לעבודה עצמה נשנה שיהיה פחות צפוף
+```{r}
+library(tidyverse)
+
+# הנחה: ה-data frame שלך נקרא students ויש בו את העמודות gpa_group ו-Skill_Retention_Score
+ggplot(students, aes(x = gpa_group, y = Skill_Retention_Score, color = gpa_group)) +
+  # שימוש ב-alpha נמוך יותר כדי להפחית עומס ויזואלי
+  geom_jitter(width = 0.25, alpha = 0.3, size = 1.5) + 
+  # הוספת ממוצעים עם צבע בולט
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 5, color = "black") +
+  # בחירת פלטת צבעים מובחנת
+  scale_color_brewer(palette = "Set1") + 
+  labs(
+    title = "Skill retention across GPA improvement groups",
+    x = "GPA change group", 
+    y = "Skill retention score",
+    color = "Group"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none") # אם אין צורך במקרא בצד
+```
+
+```{r}
+library(tidyverse)
+
+# הנחה שהדאטה כבר כולל את העמודה score_bin (כפי שהגדרנו קודם)
+# אם לא הגדרת אותה עדיין, תוסיף את שלב ה-mutate שוב.
+
+ggplot(students_binned, aes(x = score_bin, fill = gpa_group)) +
+  # שימוש ב-position = "dodge" כדי להציב את הברים אחד ליד השני
+  geom_bar(position = "dodge", color = "white", linewidth = 0.3) +
+  scale_fill_brewer(palette = "Set1") + 
+  labs(
+    title = "Skill retention distribution: Side-by-side comparison",
+    x = "Skill retention score range",
+    y = "Number of students",
+    fill = "Group"
+  ) +
+  theme_minimal(base_size = 14) +
+  # אופציונלי: התאמת הכיתוב על ציר ה-X אם הוא ארוך מדי
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
