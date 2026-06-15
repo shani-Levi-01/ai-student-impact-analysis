@@ -110,6 +110,4 @@ students <- students %>%
   the dataset; their exact measurement is not documented.
 
 ## Reproducibility notes
-
-- Any random steps use `set.seed(42)`.
 - The CSV is git-ignored on purpose; do not commit it.
